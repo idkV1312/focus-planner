@@ -1,0 +1,11 @@
+fastapi
+uvicorn
+sqlmodel
+sqlalchemy
+openai==1.63.0
+python-dotenv
+maxapi
+aiohttp
+pydantic
+requests
+httpx==0.28.1

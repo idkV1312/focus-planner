@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Focus Planner — MiniApp (offline)</title>
+  <link rel="stylesheet" href="style.css" />
+  <script src="https://unpkg.com/pdfjs-dist@4.7.76/build/pdf.min.js"></script>
+</head>
+<body>
+  <div class="safe-area"></div>
+
+  <header class="app-header">
+    <div class="brand">Focus Planner</div>
+    <div class="header-actions">
+    </div>
+  </header>
+
+  <nav class="tabs">
+    <button class="tab active" data-tab="ai">🤖 AI</button>
+    <button class="tab" data-tab="today">Сегодня</button>
+    <button class="tab" data-tab="goals">Цели</button>
+    <button class="tab" data-tab="pomodoro">Помодоро</button>
+  </nav>
+
+  <section id="tab-ai" class="tab-panel active">
+    <h1>🤖 AI-ассистент</h1>
+    <div class="card ai-chat">
+      <div id="aiChatHistory" class="chat-history">
+        <div class="message bot">
+          <div class="bubble">
+            Привет! Я твой персональный AI-ассистент. Напиши задачи, которые ты хочешь выполнить, и я составлю расписание за тебя!
+          </div>
+        </div>
+      </div>
+
+      <div id="aiTyping" class="typing-indicator hidden">
+        <span></span><span></span><span></span>
+      </div>
+
+      <div class="chat-input-row">
+        <button class="icon-btn mic-btn" id="btnVoice" title="Голосовой ввод">🎤</button>
+        <input id="aiPrompt" class="input chat-input" type="text"
+               placeholder="Например: хочу успеть подготовиться к контрольной до завтра" />
+        <button class="btn primary" id="btnAskAI" title="Отправить">➤</button>
+      </div>
+    </div>
+  </section>
+
+  <main>
+    <section id="tab-today" class="tab-panel">
+      <h1>📅 План на сегодня</h1>
+      <div id="todayList" class="card-list"></div>
+
+      <div class="toolbar">
+        <button class="btn secondary" id="btnRebuild">🔄 Пересобрать</button>
+        <button class="btn secondary" id="btnClearDone">🧹 Убрать выполненные</button>
+      </div>
+    </section>
+
+    <section id="tab-goals" class="tab-panel">
+      <h1>🎯 SMART-цели</h1>
+
+      <div class="card">
+        <label for="goalInput" class="label">Опиши цель одним предложением</label>
+        <textarea id="goalInput" class="input" rows="3" placeholder="Напр.: Запустить лендинг для сбора заявок"></textarea>
+        <button class="btn primary" id="btnGenerateSmart">✨ Разбить на подзадачи</button>
+      </div>
+
+      <div id="smartResult" class="card-list"></div>
+    </section>
+
+
+    <section id="tab-pomodoro" class="tab-panel">
+      <h1>⏱️ Помодоро</h1>
+
+      <div class="pomodoro">
+        <div class="timer" id="timerDisplay">25:00</div>
+        <div class="segment">
+          <label>Работа</label>
+          <input id="workLen" type="number" min="5" max="90" value="25"> мин
+        </div>
+        <div class="segment">
+          <label>Перерыв</label>
+          <input id="breakLen" type="number" min="3" max="30" value="5"> мин
+        </div>
+
+        <div class="toolbar">
+          <button class="btn primary" id="btnStart">▶️ Старт</button>
+          <button class="btn secondary" id="btnPause">⏸ Пауза</button>
+          <button class="btn danger" id="btnReset">⟲ Сброс</button>
+        </div>
+
+        <div id="coach" class="coach"></div>
+      </div>
+    </section>
+
+    <section id="tab-history" class="tab-panel">
+      <h1>🗂 История и поиск</h1>
+
+      <div class="card">
+        <input id="searchInput" class="input" placeholder="Поиск по задачам/заметкам..." />
+        <button class="btn secondary" id="btnSearch">🔎 Найти</button>
+      </div>
+
+      <div id="historyList" class="card-list"></div>
+    </section>
+  </main>
+
+  <button id="fab" class="fab" title="Быстро добавить">＋</button>
+<div id="sheet" class="sheet">
+    <div class="sheet-content">
+      <div class="sheet-header">
+        <div class="sheet-title">Быстрое добавление</div>
+        <button class="icon-btn" id="sheetClose">✖️</button>
+      </div>
+
+      <div class="card">
+        <label class="label">Название</label>
+        <input id="qaTitle" class="input" placeholder="Напр.: Подготовить отчёт" />
+      </div>
+
+      <div class="row">
+        <div class="card grow">
+          <label class="label">Приоритет</label>
+          <select id="qaPriority" class="input">
+            <option value="1">p1 (высокий)</option>
+            <option value="2" selected>p2 (средний)</option>
+            <option value="3">p3 (низкий)</option>
+          </select>
+        </div>
+        <div class="card grow">
+          <label class="label">Длительность (мин)</label>
+          <input id="qaMinutes" class="input" type="number" min="5" max="480" value="45" />
+        </div>
+      </div>
+
+      <div class="card">
+        <label class="label">Дедлайн (опц.)</label>
+        <input id="qaDeadline" class="input" type="date" />
+      </div>
+
+      <div class="toolbar">
+        <button class="btn primary" id="qaAdd">✅ Добавить</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const $ = (q)=>document.querySelector(q);
+    const $$ = (q)=>document.querySelectorAll(q);
+
+    const uid = ()=> Math.random().toString(36).slice(2,10);
+    const fmtHM = (d)=> d.toLocaleTimeString([], {hour:"2-digit", minute:"2-digit"});
+    const isToday = (dstr)=>{
+      if(!dstr) return true;
+      const d = new Date(dstr);
+      const t = new Date();
+      return d.getFullYear()===t.getFullYear() && d.getMonth()===t.getMonth() && d.getDate()===t.getDate();
+    };
+
+    $$(".tab").forEach(btn=>{
+      btn.addEventListener("click", ()=>{
+        $$(".tab").forEach(b=>b.classList.remove("active"));
+        btn.classList.add("active");
+        const tab = btn.dataset.tab;
+        $$(".tab-panel").forEach(p=>p.classList.remove("active"));
+        $("#tab-"+tab).classList.add("active");
+        if(tab==="today") renderToday?.();
+        if(tab==="history") renderHistory?.();
+      });
+    });
+
+    function greedyToday(list, maxMinutes=360){
+      const pool = list
+        .filter(t=>!t.done && isToday(t.deadline))
+        .sort((a,b)=> a.priority-b.priority || new Date(a.created)-new Date(b.created));
+      let left = maxMinutes;
+      const plan = [];
+      for(const t of pool){
+        const est = t.minutes || 45;
+        if(est<=left){ plan.push(t); left-=est; }
+        if(left<=0) break;
+      }
+      return plan;
+    }
+
+    window.addEventListener("DOMContentLoaded", () => {
+      const histBtn = $("#openHistory");
+      if (histBtn) {
+        histBtn.addEventListener("click", () => {
+          $$(".tab").forEach(b => b.classList.remove("active"));
+          document.querySelector('[data-tab="history"]').classList.add("active");
+          $$(".tab-panel").forEach(p => p.classList.remove("active"));
+          $("#tab-history").classList.add("active");
+          if (typeof renderHistory === "function") renderHistory();
+        });
+      }
+    });
+
+    async function renderToday() {
+      if (typeof loadTasks === "function") {
+        await loadTasks();
+      }
+    }
+
+    
+  let pomoTimer = null;
+  let pomoLeft = 25 * 60;
+  let pomoMode = "work";
+
+  function updatePomoDisplay() {
+    const out = document.getElementById("timerDisplay");
+    if (!out) return;
+
+    const m = Math.floor(pomoLeft / 60).toString().padStart(2, "0");
+    const s = Math.floor(pomoLeft % 60).toString().padStart(2, "0");
+    out.textContent = `${m}:${s}`;
+  }
+
+  function setCoach(text) {
+    const coach = document.getElementById("coach");
+    if (coach) coach.textContent = text;
+  }
+
+  function startPomodoro() {
+    const work = parseInt(document.getElementById("workLen").value) || 25;
+    const brk  = parseInt(document.getElementById("breakLen").value) || 5;
+
+    if (pomoMode === "work") pomoLeft = work * 60;
+    else pomoLeft = brk * 60;
+
+    if (pomoTimer) clearInterval(pomoTimer);
+
+    pomoTimer = setInterval(() => {
+      pomoLeft--;
+      updatePomoDisplay();
+
+      if (pomoLeft <= 0) {
+        clearInterval(pomoTimer);
+        pomoTimer = null;
+
+        if (pomoMode === "work") {
+          pomoMode = "break";
+          setCoach("Отлично! Время короткого отдыха ⛱️");
+        } else {
+          pomoMode = "work";
+          setCoach("Поехали! Новый рабочий цикл 💪");
+        }
+
+        startPomodoro();
+      }
+    }, 1000);
+
+    if (pomoMode === "work") setCoach("Фокусируемся на задаче 🔥");
+    else setCoach("Отдыхаем и восстанавливаемся 😌");
+  }
+
+  function pausePomodoro() {
+    if (pomoTimer) {
+      clearInterval(pomoTimer);
+      pomoTimer = null;
+      setCoach("Пауза ⚠️");
+    }
+  }
+
+  function resetPomodoro() {
+    clearInterval(pomoTimer);
+    pomoTimer = null;
+    pomoMode = "work";
+    pomoLeft = (parseInt(document.getElementById("workLen").value) || 25) * 60;
+
+    updatePomoDisplay();
+    setCoach("Готов начать новый цикл!");
+  }
+
+  document.addEventListener("DOMContentLoaded", () => {
+    const start = document.getElementById("btnStart");
+    const pause = document.getElementById("btnPause");
+    const reset = document.getElementById("btnReset");
+
+    start?.addEventListener("click", startPomodoro);
+    pause?.addEventListener("click", pausePomodoro);
+    reset?.addEventListener("click", resetPomodoro);
+
+    updatePomoDisplay();
+  });
+
+  async function generateSMART() {
+    const input = document.getElementById("goalInput");
+    const box = document.getElementById("smartResult");
+
+    if (!input || !box) return;
+
+    const text = input.value.trim();
+    if (!text) {
+      box.innerHTML = `<div class="empty-card">Введите цель</div>`;
+      return;
+    }
+
+    box.innerHTML = `<div class="empty-card">⏳ Ассистент обрабатывает цель...</div>`;
+
+    try {
+      const res = await fetch(`${API}/ask`, {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({
+          prompt: `Разбей цель на SMART-подзадачи. Формат: список пунктов без лишнего текста.\nЦель: ${text}`
+        })
+      });
+
+      const data = await res.json();
+      let answer = data.answer || "";
+
+      const items = answer.split("\n").filter(x => x.trim().length > 0);
+
+      box.innerHTML = "";
+      items.forEach(t => {
+        const card = document.createElement("div");
+        card.className = "card";
+        card.textContent = t.replace(/^[-•*]/, "").trim();
+        box.appendChild(card);
+      });
+
+    } catch (e) {
+      console.error(e);
+      box.innerHTML = `<div class="empty-card">Ошибка запроса к AI</div>`;
+    }
+  }
+
+  document.addEventListener("DOMContentLoaded", () => {
+    const btn = document.getElementById("btnGenerateSmart");
+    if (btn) btn.addEventListener("click", generateSMART);
+  });
+
+
+async function addTaskFull() {
+  const title = document.getElementById("qaTitle").value.trim();
+  const priority = document.getElementById("qaPriority").value;
+  const minutes = document.getElementById("qaMinutes").value;
+  const deadline = document.getElementById("qaDeadline").value;
+
+  if (!title) return;
+
+  try {
+    await fetch(
+      `${API}/add_task?title=${encodeURIComponent(title)}&priority=${priority}&minutes=${minutes}&deadline=${deadline}`,
+      { method: "POST" }
+    );
+
+    document.getElementById("qaTitle").value = "";
+    document.getElementById("qaDeadline").value = "";
+    document.getElementById("sheet").classList.remove("open");
+
+    loadTasks();
+
+  } catch (err) {
+    console.error("Ошибка добавления задачи:", err);
+  }
+}
+
+
+
+document.addEventListener("DOMContentLoaded", () => {
+  const qaAddBtn = document.getElementById("qaAdd");
+
+  if (qaAddBtn)
+    qaAddBtn.addEventListener("click", addTaskFull);
+});
+
+
+
+document.addEventListener("DOMContentLoaded", () => {
+  const fab = document.getElementById("fab");
+  const sheet = document.getElementById("sheet");
+
+  if (fab && sheet) {
+    fab.addEventListener("click", () => {
+      sheet.classList.add("open");
+    });
+  }
+
+  const sheetClose = document.getElementById("sheetClose");
+  if (sheetClose && sheet) {
+    sheetClose.addEventListener("click", () => {
+      sheet.classList.remove("open");
+    });
+  }
+
+  sheet.addEventListener("click", (e) => {
+    if (e.target === sheet) {
+      sheet.classList.remove("open");
+    }
+  });
+});
+
+  </script>
+
+  <script src="script.js"></script>
+</body>
+</html>

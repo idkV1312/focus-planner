@@ -1,0 +1,5 @@
+fastapi
+uvicorn
+sqlmodel
+openai==1.63.0
+httpx==0.28.1
